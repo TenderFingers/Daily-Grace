@@ -259,7 +259,7 @@
       '<section class="card"><h2>Read</h2><p class="ref">' + esc(d.ref) + '</p>' + passage(p, n) +
       '<p class="muted small">World English Bible, British Edition (public domain). <a href="' + webLink(d.ref) + '" target="_blank" rel="noopener">Open on BibleGateway</a></p></section>' +
       '<section class="card"><p class="read">' + esc(d.leadIn) + '</p></section>' +
-      (d.pause ? '<section class="card pause"><h2>Pause</h2><p class="read">' + esc(d.pause) + '</p></section>' : '') +
+      (d.pause ? '<section class="card pause"><h2>Pause</h2><p class="read">' + esc(d.pause) + '</p>' + breathMarkup(d.pause) + '</section>' : '') +
       '<section class="card"><h2>Pray</h2><p class="prayer">' + esc(d.prayer) + '</p>' +
       '<div class="row"><button class="btn ghost" id="listen" type="button">Listen</button></div></section>' +
       '<section class="card"><h2>Reflect</h2><p class="read">' + esc(d.reflect) + '</p>' +
@@ -336,7 +336,66 @@
   }
 
   // ---------- routing ----------
+  // ---------- breathing timer (Pause card): one breath, 4 seconds in and 4 seconds out ----------
+  var breathTimer = null, breathOverlay = null;
+  function breathParts(text) {
+    var m = /Breathe in:\s*[“"]([^”"]*)[”"]\s*Breathe out:\s*[“"]([^”"]*)[”"]/.exec(text || '');
+    return m ? { inn: m[1], out: m[2] } : null;
+  }
+  function breathMarkup(text) {
+    if (!breathParts(text)) return '';
+    return '<div class="breath"><p class="bcue" id="bcue" aria-live="polite"></p>' +
+      '<div class="row"><button class="btn ghost" type="button" id="breathe">Take one slow breath</button></div></div>';
+  }
+  function endBreath(msg) {
+    if (breathTimer) { clearInterval(breathTimer); breathTimer = null; }
+    var o = breathOverlay; breathOverlay = null;
+    if (o) { o.classList.remove('on'); setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, 700); }
+    document.removeEventListener('keydown', breathKey);
+    var c = document.getElementById('bcue');
+    if (c) c.textContent = msg || '';
+  }
+  function breathKey(e) { if (e.key === 'Escape') endBreath('Stopped. Try again any time.'); }
+  function startBreath(text) {
+    var parts = breathParts(text);
+    if (!parts || breathTimer) return;
+    var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var cue, phrase, ov = null, tick = 0;
+    if (!calm) {
+      ov = document.createElement('div');
+      ov.className = 'breathscreen dark';
+      ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-label', 'Breathing');
+      ov.innerHTML = '<div class="bbox"><p class="bcue2" id="bcue2" aria-live="polite"></p><p class="bphrase2" id="bphrase2"></p>' +
+        '<button class="btn ghost" type="button" id="bstop">Stop</button></div>';
+      document.body.appendChild(ov);
+      breathOverlay = ov;
+      cue = ov.querySelector('#bcue2'); phrase = ov.querySelector('#bphrase2');
+      ov.querySelector('#bstop').addEventListener('click', function () { endBreath('Stopped. Try again any time.'); });
+      document.addEventListener('keydown', breathKey);
+      void ov.offsetWidth; ov.classList.add('on');
+    } else {
+      cue = document.getElementById('bcue'); phrase = { textContent: '' };
+    }
+    function show() {
+      var inPhase = tick < 4;
+      cue.textContent = inPhase ? 'Breathe in' : 'Breathe out';
+      phrase.textContent = inPhase ? parts.inn : parts.out;
+      if (ov) {
+        if (inPhase) { ov.classList.remove('dark'); ov.classList.add('bright'); }
+        else { ov.classList.remove('bright'); ov.classList.add('dark'); }
+      }
+    }
+    // start dark, then brighten to white over the first four seconds
+    setTimeout(function () { if (breathTimer) show(); }, 30);
+    breathTimer = setInterval(function () {
+      tick++;
+      if (tick >= 8) { endBreath('Rest here a moment. Amen.'); return; }
+      show();
+    }, 1000);
+  }
+
   function route() {
+    if (breathTimer || breathOverlay) endBreath('');
     var hash = (location.hash || '#today').slice(1);
     var html, active = 'today', m;
     if ((m = new RegExp('^(' + PATHRE + ')-(\\d+)$').exec(hash))) { html = viewDay(m[1], +m[2]); active = 'paths'; }
@@ -368,6 +427,7 @@
     if (m) {
       var p = PATHS[m[1]], n = +m[2], d = getDay(p, n);
       on('note', 'input', function (e) { state[p.noteKey][n] = e.target.value; save(); });
+      on('breathe', 'click', function () { startBreath(d && d.pause); });
       on('complete', 'click', function () {
         if (!isDone(p, n)) {
           doneMap(p)[n] = today();
