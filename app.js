@@ -345,7 +345,7 @@
   function breathMarkup(text) {
     if (!breathParts(text)) return '';
     return '<div class="breath"><p class="bcue" id="bcue" aria-live="polite"></p>' +
-      '<div class="row"><button class="btn ghost" type="button" id="breathe">Take one slow breath</button></div></div>';
+      '<div class="row"><button class="btn breathbtn" type="button" id="breathe"><span aria-hidden="true">&#9675;</span> Tap to take one slow breath</button></div></div>';
   }
   function endBreath(msg) {
     if (breathTimer) { clearInterval(breathTimer); breathTimer = null; }
