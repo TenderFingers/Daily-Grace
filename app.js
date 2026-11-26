@@ -21,23 +21,33 @@
   var ADV_YEAR = _t > _y + '-12-24' ? _y + 1 : _y;
   ADV.forEach(function (d) { d.date = ADV_YEAR + '-12-' + (d.day < 10 ? '0' : '') + d.day; });
   PATHS.advent = { id: 'advent', name: 'Advent ' + ADV_YEAR, blurb: '24 days, Dec 1 to Christmas Eve.', days: ADV, scripture: (window.ADVENT && window.ADVENT.scripture) || {}, doneKey: 'doneAdvent', noteKey: 'notesAdvent', dated: true };
-  var ORDER = ['start', 'lent', 'advent'];
+  var EAS = (window.EASTER && window.EASTER.days) || [];
+  PATHS.easter = { id: 'easter', name: 'Easter 2027', blurb: '14 days, Easter Sunday Mar 28 to Apr 10. Free.', days: EAS, scripture: (window.EASTER && window.EASTER.scripture) || {}, doneKey: 'doneEaster', noteKey: 'notesEaster', dated: true };
+  var TIDE = (window.EASTERTIDE && window.EASTERTIDE.days) || [];
+  PATHS.eastertide = { id: 'eastertide', name: 'Eastertide', blurb: 'Bonus: 36 more days, Apr 11 to Pentecost, May 16. Part of the paid plan (open in this test).', days: TIDE, scripture: (window.EASTERTIDE && window.EASTERTIDE.scripture) || {}, doneKey: 'doneTide', noteKey: 'notesTide', dated: true };
+  var ORDER = ['start', 'advent', 'lent', 'easter', 'eastertide'];
 
   // ---------- state ----------
   function fresh() {
-    return { done: {}, notes: {}, doneLent: {}, notesLent: {}, doneAdvent: {}, notesAdvent: {}, price: null, trialTap: false, churchInterest: false, reminder: '', path: 'start', testMode: false };
+    return { done: {}, notes: {}, doneLent: {}, notesLent: {}, doneAdvent: {}, notesAdvent: {}, doneEaster: {}, notesEaster: {}, doneTide: {}, notesTide: {}, price: null, trialTap: false, churchInterest: false, reminder: '', path: 'start', testMode: false };
   }
   function load() {
-    var s = null;
+    var s = null, isNew = false;
     try {
       var raw = localStorage.getItem(KEY);
       if (raw) s = JSON.parse(raw);
     } catch (e) { s = null; }
-    if (!s) s = memState || fresh();
+    if (!s) { s = memState; }
+    if (!s) {
+      s = fresh(); isNew = true;
+      // new visitors open on Advent while it is in season, otherwise on Start here
+      var t = today();
+      if (t >= ADV_YEAR + '-12-01' && t <= ADV_YEAR + '-12-24') s.path = 'advent';
+    }
     var base = fresh();
     Object.keys(base).forEach(function (k) { if (s[k] === undefined) s[k] = base[k]; });
     if (!s.price) s.price = PRICES[Math.floor(Math.random() * PRICES.length)];
-    if (!PATHS[s.path]) s.path = 'start';
+    if (!PATHS[s.path] || (PATHS[s.path].id === 'eastertide' && !s.testMode)) s.path = 'start';
     return s;
   }
   var state = load();
@@ -66,6 +76,7 @@
     var p = key.split('-');
     return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   }
+  function hidden(p) { return p.id === 'eastertide' && !state.testMode; }
   function doneMap(p) { return state[p.doneKey]; }
   function isDone(p, n) { return !!doneMap(p)[n]; }
   function doneCount(p) { return Object.keys(doneMap(p)).length; }
@@ -154,6 +165,7 @@
   }
 
   function viewToday() {
+    if (hidden(PATHS[state.path])) state.path = 'start';
     var p = PATHS[state.path];
     var s = streak();
     var nd = nextOpen(p);
@@ -186,6 +198,7 @@
     var h = '<h1>Paths</h1><p class="muted">Pick the series you want to follow today.</p>';
     ORDER.forEach(function (id) {
       var p = PATHS[id];
+      if (hidden(p)) return;
       var active = state.path === id;
       var pct = Math.round(100 * doneCount(p) / p.days.length);
       h += '<section class="card"><div class="row spread"><h2>' + esc(p.name) + '</h2>' + (active ? '<span class="badge">Following</span>' : '') + '</div>' +
@@ -195,14 +208,14 @@
         '<div class="row"><button class="btn' + (active ? ' ghost' : '') + '" type="button" data-pick="' + id + '">' + (active ? 'Go to today' : 'Follow this path') + '</button>' +
         '<a class="btn ghost" href="#list-' + id + '">See all days</a></div></section>';
     });
-    h += '<section class="card"><h2>Test mode</h2><p class="muted small">For testers and demos. Unlocks every day of Lent and Advent so you can read ahead. Real users will not see this.</p>' +
+    h += '<section class="card"><h2>Test mode</h2><p class="muted small">For testers and demos. Unlocks every day of Lent, Easter and Advent so you can read ahead. Real users will not see this.</p>' +
       '<label class="check"><input type="checkbox" id="testmode"' + (state.testMode ? ' checked' : '') + '> Unlock all days</label></section>';
     return h;
   }
 
   function viewList(id) {
     var p = PATHS[id];
-    if (!p) return '<h1>Not found</h1><a class="btn" href="#paths">Paths</a>';
+    if (!p || hidden(p)) return '<h1>Not found</h1><a class="btn" href="#paths">Paths</a>';
     var h = '<h1>' + esc(p.name) + '</h1><div class="list">';
     p.days.forEach(function (d) {
       var done = isDone(p, d.day), open = isOpen(p, d.day);
@@ -215,7 +228,7 @@
 
   function viewDay(id, n) {
     var p = PATHS[id];
-    var d = p && getDay(p, n);
+    var d = p && !hidden(p) && getDay(p, n);
     if (!d) return '<h1>Day not found</h1><a class="btn" href="#paths">See paths</a>';
     if (!isOpen(p, n)) {
       return '<p class="eyebrow">' + esc(p.name) + ' · Day ' + d.day + '</p><h1>' + esc(d.title) + '</h1>' +
@@ -249,6 +262,8 @@
       'Morning Light test results',
       'Start here: ' + doneCount(PATHS.start) + ' of ' + PATHS.start.days.length + ' days finished',
       'Lent: ' + doneCount(PATHS.lent) + ' of ' + PATHS.lent.days.length + ' days finished',
+      'Easter: ' + doneCount(PATHS.easter) + ' of ' + PATHS.easter.days.length + ' days finished',
+      'Eastertide: ' + doneCount(PATHS.eastertide) + ' of ' + PATHS.eastertide.days.length + ' days finished',
       'Advent: ' + doneCount(PATHS.advent) + ' of ' + PATHS.advent.days.length + ' days finished',
       'Current streak: ' + streak(),
       'Reminder time: ' + (state.reminder || 'not set'),
@@ -289,9 +304,9 @@
   function route() {
     var hash = (location.hash || '#today').slice(1);
     var html, active = 'today', m;
-    if ((m = /^(start|lent|advent)-(\d+)$/.exec(hash))) { html = viewDay(m[1], +m[2]); active = 'paths'; }
+    if ((m = /^(start|lent|easter|eastertide|advent)-(\d+)$/.exec(hash))) { html = viewDay(m[1], +m[2]); active = 'paths'; }
     else if ((m = /^day-(\d+)$/.exec(hash))) { hash = 'start-' + m[1]; html = viewDay('start', +m[1]); active = 'paths'; }
-    else if ((m = /^list-(start|lent|advent)$/.exec(hash))) { html = viewList(m[1]); active = 'paths'; }
+    else if ((m = /^list-(start|lent|easter|eastertide|advent)$/.exec(hash))) { html = viewList(m[1]); active = 'paths'; }
     else if (hash === 'days') { html = viewList(state.path); active = 'paths'; }
     else if (hash === 'paths') { html = viewPaths(); active = 'paths'; }
     else if (hash === 'reminder') { html = viewReminder(); active = 'reminder'; }
@@ -314,7 +329,7 @@
   }
 
   function wire(hash) {
-    var m = /^(start|lent|advent)-(\d+)$/.exec(hash);
+    var m = /^(start|lent|easter|eastertide|advent)-(\d+)$/.exec(hash);
     if (m) {
       var p = PATHS[m[1]], n = +m[2], d = getDay(p, n);
       on('note', 'input', function (e) { state[p.noteKey][n] = e.target.value; save(); });
@@ -351,7 +366,13 @@
         route();
       });
     });
-    on('testmode', 'change', function (e) { state.testMode = e.target.checked; save(); toast(state.testMode ? 'Test mode on' : 'Test mode off'); });
+    on('testmode', 'change', function (e) {
+      state.testMode = e.target.checked;
+      if (!state.testMode && state.path === 'eastertide') state.path = 'start';
+      save();
+      toast(state.testMode ? 'Test mode on' : 'Test mode off');
+      route();
+    });
     on('rsave', 'click', function () {
       state.reminder = document.getElementById('rtime').value;
       save();
