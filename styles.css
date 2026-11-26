@@ -135,3 +135,13 @@ ul.clean { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
 .scripture + .scripture { margin-top: 10px; }
 .scripture sup { font-family: var(--font-ui); font-size: 0.65em; font-weight: 700; color: var(--muted); margin-right: 3px; }
 .scripture .verse { display: inline; }
+
+/* Lent / paths additions */
+.dot.locked { opacity: 0.45; border-style: dashed; }
+.item.locked { opacity: 0.6; }
+.badge.soft { background: transparent; border-color: var(--line, #ccc); font-weight: 500; }
+.spread { justify-content: space-between; }
+.bar { height: 8px; border-radius: 999px; background: var(--glow-soft); overflow: hidden; margin: 10px 0 6px; }
+.bar span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.check { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.check input { width: 20px; height: 20px; }

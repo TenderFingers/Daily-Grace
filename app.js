@@ -1,17 +1,31 @@
 (function () {
   'use strict';
 
-  var DAYS = window.DAYS || [];
-  var KEY = 'dailygrace.v1';
+  var KEY = 'dailygrace.v1'; // kept so existing testers keep their progress
   var PRICES = [29.99, 49.99, 69.99];
   var app = document.getElementById('app');
   var toastEl = document.getElementById('toast');
   var toastTimer = null;
   var memState = null;
 
+  // ---------- paths ----------
+  var START = window.DAYS || [];
+  var LENT = (window.LENT && window.LENT.days) || [];
+  var PATHS = {
+    start: { id: 'start', name: 'Start here', blurb: '14 days, any time. Free.', days: START, scripture: window.SCRIPTURE || {}, doneKey: 'done', noteKey: 'notes', dated: false },
+    lent: { id: 'lent', name: 'Lent 2027', blurb: 'Ash Wednesday, Feb 10 to Holy Saturday, Mar 27.', days: LENT, scripture: (window.LENT && window.LENT.scripture) || {}, doneKey: 'doneLent', noteKey: 'notesLent', dated: true }
+  };
+  var ADV = (window.ADVENT && window.ADVENT.days) || [];
+  // Advent runs Dec 1 to Dec 24 of the current season: this year until Dec 24, then next year
+  var _t = today(), _y = +_t.slice(0, 4);
+  var ADV_YEAR = _t > _y + '-12-24' ? _y + 1 : _y;
+  ADV.forEach(function (d) { d.date = ADV_YEAR + '-12-' + (d.day < 10 ? '0' : '') + d.day; });
+  PATHS.advent = { id: 'advent', name: 'Advent ' + ADV_YEAR, blurb: '24 days, Dec 1 to Christmas Eve.', days: ADV, scripture: (window.ADVENT && window.ADVENT.scripture) || {}, doneKey: 'doneAdvent', noteKey: 'notesAdvent', dated: true };
+  var ORDER = ['start', 'lent', 'advent'];
+
   // ---------- state ----------
   function fresh() {
-    return { done: {}, notes: {}, price: null, trialTap: false, churchInterest: false, reminder: '' };
+    return { done: {}, notes: {}, doneLent: {}, notesLent: {}, doneAdvent: {}, notesAdvent: {}, price: null, trialTap: false, churchInterest: false, reminder: '', path: 'start', testMode: false };
   }
   function load() {
     var s = null;
@@ -23,6 +37,7 @@
     var base = fresh();
     Object.keys(base).forEach(function (k) { if (s[k] === undefined) s[k] = base[k]; });
     if (!s.price) s.price = PRICES[Math.floor(Math.random() * PRICES.length)];
+    if (!PATHS[s.path]) s.path = 'start';
     return s;
   }
   var state = load();
@@ -42,19 +57,35 @@
     var m = d.getMonth() + 1, day = d.getDate();
     return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
   }
-  function today() { return dateKey(new Date()); }
+  function today() { return window.__TODAY__ || dateKey(new Date()); }
   function shift(key, n) {
     var p = key.split('-');
-    var d = new Date(+p[0], +p[1] - 1, +p[2] + n);
-    return dateKey(d);
+    return dateKey(new Date(+p[0], +p[1] - 1, +p[2] + n));
   }
-  function doneDates() {
+  function niceDate(key) {
+    var p = key.split('-');
+    return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+  function doneMap(p) { return state[p.doneKey]; }
+  function isDone(p, n) { return !!doneMap(p)[n]; }
+  function doneCount(p) { return Object.keys(doneMap(p)).length; }
+  function getDay(p, n) { return p.days[n - 1] || null; }
+  function isOpen(p, n) {
+    var d = getDay(p, n);
+    if (!d) return false;
+    if (!p.dated || state.testMode) return true;
+    return d.date <= today();
+  }
+  function streakDates() {
     var o = {};
-    Object.keys(state.done).forEach(function (k) { o[state.done[k]] = true; });
+    ORDER.forEach(function (id) {
+      var m = doneMap(PATHS[id]);
+      Object.keys(m).forEach(function (k) { o[m[k]] = true; });
+    });
     return o;
   }
   function streak() {
-    var dates = doneDates();
+    var dates = streakDates();
     var t = today();
     var cur = dates[t] ? t : (dates[shift(t, -1)] ? shift(t, -1) : null);
     if (!cur) return 0;
@@ -62,15 +93,15 @@
     while (dates[cur]) { n++; cur = shift(cur, -1); }
     return n;
   }
-  function nextDay() {
-    for (var i = 0; i < DAYS.length; i++) if (!state.done[DAYS[i].day]) return DAYS[i].day;
+  // first open, unfinished day in a path (or null)
+  function nextOpen(p) {
+    for (var i = 0; i < p.days.length; i++) {
+      var n = p.days[i].day;
+      if (!isDone(p, n) && isOpen(p, n)) return n;
+    }
     return null;
   }
-  function doneCount() { return Object.keys(state.done).length; }
-  function getDay(n) {
-    for (var i = 0; i < DAYS.length; i++) if (DAYS[i].day === n) return DAYS[i];
-    return null;
-  }
+  function allDone(p) { return doneCount(p) >= p.days.length; }
   function toast(msg) {
     toastEl.textContent = msg;
     toastEl.classList.add('show');
@@ -79,16 +110,6 @@
   }
   function webLink(ref) {
     return 'https://www.biblegateway.com/passage/?search=' + encodeURIComponent(ref) + '&version=WEB';
-  }
-  function passage(n) {
-    var rows = (window.SCRIPTURE || {})[n];
-    if (!rows || !rows.length) return '';
-    var h = '<div class="scripture">';
-    rows.forEach(function (r, i) {
-      if (r[2] && i > 0) h += '</div><div class="scripture">';
-      h += '<span class="verse"><sup>' + r[0] + '</sup>' + esc(r[1]) + '</span> ';
-    });
-    return h + '</div>';
   }
   function money(n) { return '$' + n.toFixed(2); }
   function copyText(text, ta) {
@@ -108,56 +129,103 @@
     } catch (e) { /* fall through */ }
     fallback();
   }
+  function passage(p, n) {
+    var rows = p.scripture[n];
+    if (!rows || !rows.length) return '';
+    var h = '<div class="scripture">';
+    rows.forEach(function (r, i) {
+      if (r[2] && i > 0) h += '</div><div class="scripture">';
+      h += '<span class="verse"><sup>' + r[0] + '</sup>' + esc(r[1]) + '</span> ';
+    });
+    return h + '</div>';
+  }
 
   // ---------- views ----------
-  function dots() {
-    var html = '<div class="dots" role="list" aria-label="Your 14 days">';
-    var nd = nextDay();
-    DAYS.forEach(function (d) {
-      var cls = 'dot' + (state.done[d.day] ? ' done' : '') + (d.day === nd ? ' next' : '');
-      var label = 'Day ' + d.day + (state.done[d.day] ? ', done' : (d.day === nd ? ', up next' : ''));
-      html += '<a class="' + cls + '" role="listitem" href="#day-' + d.day + '" aria-label="' + label + '">' + d.day + '</a>';
+  function dots(p) {
+    var nd = nextOpen(p);
+    var html = '<div class="dots" role="list" aria-label="' + esc(p.name) + ' days">';
+    p.days.forEach(function (d) {
+      var done = isDone(p, d.day), open = isOpen(p, d.day);
+      var cls = 'dot' + (done ? ' done' : '') + (d.day === nd ? ' next' : '') + (!open ? ' locked' : '');
+      var label = 'Day ' + d.day + (done ? ', done' : (d.day === nd ? ', up next' : (!open ? ', opens ' + niceDate(d.date) : '')));
+      html += '<a class="' + cls + '" role="listitem" href="#' + p.id + '-' + d.day + '" aria-label="' + label + '">' + d.day + '</a>';
     });
     return html + '</div>';
   }
 
   function viewToday() {
+    var p = PATHS[state.path];
     var s = streak();
-    var nd = nextDay();
+    var nd = nextOpen(p);
     var h = '<section class="card hero"><div class="streak"><div class="num" aria-hidden="true">' + s + '</div>' +
       '<div><h2>' + (s === 1 ? '1 day streak' : s + ' day streak') + '</h2>' +
-      '<p class="muted small">' + doneCount() + ' of ' + DAYS.length + ' days finished</p></div></div>' + dots() + '</section>';
-    if (nd === null) {
-      h += '<section class="card"><p class="eyebrow">All done</p><h1>You finished all ' + DAYS.length + ' days</h1>' +
+      '<p class="muted small">' + esc(p.name) + ': ' + doneCount(p) + ' of ' + p.days.length + ' days finished</p></div></div>' + dots(p) + '</section>';
+    if (allDone(p)) {
+      h += '<section class="card"><p class="eyebrow">All done</p><h1>You finished ' + esc(p.name) + '</h1>' +
         '<p class="read">Thank you for praying along. Tell us what worked and what did not.</p>' +
-        '<div class="row"><a class="btn" href="#plan">Share my results</a><a class="btn ghost" href="#days">Revisit a day</a></div></section>';
-    } else {
-      var d = getDay(nd);
-      h += '<section class="card"><p class="eyebrow">Day ' + d.day + ' · about 5 minutes</p><h1>' + esc(d.title) + '</h1>' +
+        '<div class="row"><a class="btn" href="#plan">Share my results</a><a class="btn ghost" href="#paths">Choose a path</a></div></section>';
+    } else if (nd !== null) {
+      var d = getDay(p, nd);
+      h += '<section class="card"><p class="eyebrow">' + (p.dated ? niceDate(d.date) + ' · ' : '') + 'Day ' + d.day + ' · about 5 minutes</p><h1>' + esc(d.title) + '</h1>' +
         '<p class="muted">' + esc(d.ref) + '</p>' +
-        '<div class="row"><a class="btn" href="#day-' + d.day + '">Begin today’s prayer</a></div></section>';
+        '<div class="row"><a class="btn" href="#' + p.id + '-' + d.day + '">Begin today’s prayer</a></div></section>';
+    } else {
+      // dated path with nothing open right now
+      var first = p.days[0], lastD = p.days[p.days.length - 1];
+      var msg;
+      if (today() < first.date) msg = esc(p.name) + ' begins on ' + niceDate(first.date) + '. Day 1 opens then.';
+      else if (today() > lastD.date) msg = esc(p.name) + ' has ended.';
+      else msg = 'You are caught up. The next session opens tomorrow.';
+      h += '<section class="card"><p class="eyebrow">' + esc(p.name) + '</p><h1>' + (today() < first.date ? 'Coming soon' : 'Come back tomorrow') + '</h1>' +
+        '<p class="read">' + msg + '</p><div class="row"><a class="btn ghost" href="#list-' + p.id + '">See all days</a><a class="btn ghost" href="#paths">Choose a path</a></div></section>';
     }
     return h;
   }
 
-  function viewDays() {
-    var h = '<h1>All days</h1><div class="list">';
-    DAYS.forEach(function (d) {
-      var done = state.done[d.day];
-      h += '<a class="item" href="#day-' + d.day + '"><span class="t"><span class="eyebrow">Day ' + d.day + '</span><strong>' +
+  function viewPaths() {
+    var h = '<h1>Paths</h1><p class="muted">Pick the series you want to follow today.</p>';
+    ORDER.forEach(function (id) {
+      var p = PATHS[id];
+      var active = state.path === id;
+      var pct = Math.round(100 * doneCount(p) / p.days.length);
+      h += '<section class="card"><div class="row spread"><h2>' + esc(p.name) + '</h2>' + (active ? '<span class="badge">Following</span>' : '') + '</div>' +
+        '<p class="muted small">' + esc(p.blurb) + '</p>' +
+        '<div class="bar" role="img" aria-label="' + pct + ' percent done"><span style="width:' + pct + '%"></span></div>' +
+        '<p class="muted small">' + doneCount(p) + ' of ' + p.days.length + ' days finished</p>' +
+        '<div class="row"><button class="btn' + (active ? ' ghost' : '') + '" type="button" data-pick="' + id + '">' + (active ? 'Go to today' : 'Follow this path') + '</button>' +
+        '<a class="btn ghost" href="#list-' + id + '">See all days</a></div></section>';
+    });
+    h += '<section class="card"><h2>Test mode</h2><p class="muted small">For testers and demos. Unlocks every day of Lent and Advent so you can read ahead. Real users will not see this.</p>' +
+      '<label class="check"><input type="checkbox" id="testmode"' + (state.testMode ? ' checked' : '') + '> Unlock all days</label></section>';
+    return h;
+  }
+
+  function viewList(id) {
+    var p = PATHS[id];
+    if (!p) return '<h1>Not found</h1><a class="btn" href="#paths">Paths</a>';
+    var h = '<h1>' + esc(p.name) + '</h1><div class="list">';
+    p.days.forEach(function (d) {
+      var done = isDone(p, d.day), open = isOpen(p, d.day);
+      h += '<a class="item' + (open ? '' : ' locked') + '" href="#' + p.id + '-' + d.day + '"><span class="t"><span class="eyebrow">Day ' + d.day + (p.dated ? ' · ' + niceDate(d.date) : '') + '</span><strong>' +
         esc(d.title) + '</strong><span class="muted small">' + esc(d.ref) + '</span></span>' +
-        (done ? '<span class="badge">Done</span>' : '') + '</a>';
+        (done ? '<span class="badge">Done</span>' : (!open ? '<span class="badge soft">Locked</span>' : '')) + '</a>';
     });
     return h + '</div>';
   }
 
-  function viewDay(n) {
-    var d = getDay(n);
-    if (!d) return '<h1>Day not found</h1><a class="btn" href="#days">See all days</a>';
-    var done = !!state.done[n];
-    var note = state.notes[n] || '';
-    var h = '<p class="eyebrow">Day ' + d.day + ' of ' + DAYS.length + '</p><h1>' + esc(d.title) + '</h1>' +
-      '<section class="card"><h2>Read</h2><p class="ref">' + esc(d.ref) + '</p>' + passage(n) +
+  function viewDay(id, n) {
+    var p = PATHS[id];
+    var d = p && getDay(p, n);
+    if (!d) return '<h1>Day not found</h1><a class="btn" href="#paths">See paths</a>';
+    if (!isOpen(p, n)) {
+      return '<p class="eyebrow">' + esc(p.name) + ' · Day ' + d.day + '</p><h1>' + esc(d.title) + '</h1>' +
+        '<section class="card"><p class="read">This day opens on ' + niceDate(d.date) + '. Each session unlocks on its own date so we pray through the season together.</p>' +
+        '<div class="row"><a class="btn" href="#today">Back to today</a><a class="btn ghost" href="#list-' + id + '">See all days</a></div></section>';
+    }
+    var done = isDone(p, n);
+    var note = state[p.noteKey][n] || '';
+    return '<p class="eyebrow">' + esc(p.name) + ' · Day ' + d.day + ' of ' + p.days.length + (p.dated ? ' · ' + niceDate(d.date) : '') + '</p><h1>' + esc(d.title) + '</h1>' +
+      '<section class="card"><h2>Read</h2><p class="ref">' + esc(d.ref) + '</p>' + passage(p, n) +
       '<p class="muted small">World English Bible, British Edition (public domain). <a href="' + webLink(d.ref) + '" target="_blank" rel="noopener">Open on BibleGateway</a></p></section>' +
       '<section class="card"><p class="read">' + esc(d.leadIn) + '</p></section>' +
       '<section class="card"><h2>Pray</h2><p class="prayer">' + esc(d.prayer) + '</p>' +
@@ -167,7 +235,6 @@
       '<textarea id="note" placeholder="Optional">' + esc(note) + '</textarea></section>' +
       '<div class="row"><button class="btn" id="complete" type="button">' + (done ? 'Completed ✓' : 'Mark day complete') + '</button>' +
       '<a class="btn ghost" href="#today">Back</a></div>';
-    return h;
   }
 
   function viewReminder() {
@@ -180,25 +247,30 @@
   function resultsText() {
     var lines = [
       'Morning Light test results',
-      'Days finished: ' + doneCount() + ' of ' + DAYS.length,
+      'Start here: ' + doneCount(PATHS.start) + ' of ' + PATHS.start.days.length + ' days finished',
+      'Lent: ' + doneCount(PATHS.lent) + ' of ' + PATHS.lent.days.length + ' days finished',
+      'Advent: ' + doneCount(PATHS.advent) + ' of ' + PATHS.advent.days.length + ' days finished',
       'Current streak: ' + streak(),
       'Reminder time: ' + (state.reminder || 'not set'),
       'Price shown: ' + money(state.price) + '/year',
       'Tapped free trial: ' + (state.trialTap ? 'yes' : 'no'),
       'Interested in church plan: ' + (state.churchInterest ? 'yes' : 'no')
     ];
-    var notes = Object.keys(state.notes).filter(function (k) { return state.notes[k]; });
-    if (notes.length) {
-      lines.push('Notes:');
-      notes.forEach(function (k) { lines.push('  Day ' + k + ': ' + state.notes[k]); });
-    }
+    ORDER.forEach(function (id) {
+      var p = PATHS[id], nm = state[p.noteKey];
+      var ks = Object.keys(nm).filter(function (k) { return nm[k]; });
+      if (ks.length) {
+        lines.push('Notes (' + p.name + '):');
+        ks.forEach(function (k) { lines.push('  Day ' + k + ': ' + nm[k]); });
+      }
+    });
     return lines.join('\n');
   }
 
   function viewPlan() {
     return '<h1>Plan</h1>' +
       '<section class="card"><p class="eyebrow">Morning Light</p><div class="price">' + money(state.price) + '<span class="muted small"> / year</span></div>' +
-      '<ul class="clean"><li>A new 5-minute prayer session every day</li><li>Audio for every session</li><li>Streaks and reminders</li></ul>' +
+      '<ul class="clean"><li>A new 5-minute prayer session every day</li><li>Seasonal paths like Lent and Advent</li><li>Audio for every session</li><li>Streaks and reminders</li></ul>' +
       '<div class="row"><button class="btn" id="trial" type="button">Start 7-day free trial</button></div>' +
       '<p class="muted small" id="trialmsg">' + (state.trialTap ? 'Thanks. Payments are not live yet, and you have not been charged.' : 'Test version: no payment is taken.') + '</p></section>' +
       '<section class="card"><h2>Share how it went</h2><p class="muted small">Copy this summary and send it to me.</p>' +
@@ -209,7 +281,7 @@
   function viewChurch() {
     return '<h1>For churches</h1><section class="card"><p class="note">Mockup only. Nothing here is live yet.</p>' +
       '<p class="read">Give your whole congregation the same daily prayer, matched to your sermon series or season.</p>' +
-      '<ul class="clean"><li>One shared plan for the whole congregation</li><li>Pastor’s note on any day</li><li>Simple group totals, no personal details</li><li>Flat yearly price by congregation size</li></ul>' +
+      '<ul class="clean"><li>One shared path for the whole congregation, such as Lent together</li><li>Pastor’s note on any day</li><li>Simple group totals, no personal details</li><li>Flat yearly price by congregation size</li></ul>' +
       '<div class="row"><button class="btn" id="church" type="button">' + (state.churchInterest ? 'Interest noted ✓' : 'I’d like this for my church') + '</button></div></section>';
   }
 
@@ -217,8 +289,11 @@
   function route() {
     var hash = (location.hash || '#today').slice(1);
     var html, active = 'today', m;
-    if (hash === 'days') { html = viewDays(); active = 'days'; }
-    else if ((m = /^day-(\d+)$/.exec(hash))) { html = viewDay(+m[1]); active = 'days'; }
+    if ((m = /^(start|lent|advent)-(\d+)$/.exec(hash))) { html = viewDay(m[1], +m[2]); active = 'paths'; }
+    else if ((m = /^day-(\d+)$/.exec(hash))) { hash = 'start-' + m[1]; html = viewDay('start', +m[1]); active = 'paths'; }
+    else if ((m = /^list-(start|lent|advent)$/.exec(hash))) { html = viewList(m[1]); active = 'paths'; }
+    else if (hash === 'days') { html = viewList(state.path); active = 'paths'; }
+    else if (hash === 'paths') { html = viewPaths(); active = 'paths'; }
     else if (hash === 'reminder') { html = viewReminder(); active = 'reminder'; }
     else if (hash === 'plan') { html = viewPlan(); active = 'plan'; }
     else if (hash === 'church') { html = viewChurch(); active = 'church'; }
@@ -239,14 +314,13 @@
   }
 
   function wire(hash) {
-    var m = /^day-(\d+)$/.exec(hash);
+    var m = /^(start|lent|advent)-(\d+)$/.exec(hash);
     if (m) {
-      var n = +m[1];
-      var d = getDay(n);
-      on('note', 'input', function (e) { state.notes[n] = e.target.value; save(); });
+      var p = PATHS[m[1]], n = +m[2], d = getDay(p, n);
+      on('note', 'input', function (e) { state[p.noteKey][n] = e.target.value; save(); });
       on('complete', 'click', function () {
-        if (!state.done[n]) {
-          state.done[n] = today();
+        if (!isDone(p, n)) {
+          doneMap(p)[n] = today();
           save();
           toast('Day ' + n + ' complete');
         }
@@ -269,6 +343,15 @@
         window.speechSynthesis.speak(u);
       });
     }
+    document.querySelectorAll('[data-pick]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        state.path = b.getAttribute('data-pick');
+        save();
+        location.hash = '#today';
+        route();
+      });
+    });
+    on('testmode', 'change', function (e) { state.testMode = e.target.checked; save(); toast(state.testMode ? 'Test mode on' : 'Test mode off'); });
     on('rsave', 'click', function () {
       state.reminder = document.getElementById('rtime').value;
       save();
