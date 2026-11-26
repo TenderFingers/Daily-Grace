@@ -1,7 +1,7 @@
 // Network first, so testers always get the newest version when online; cache is the offline fallback.
-var CACHE = 'morning-light-v1';
+var CACHE = 'morning-light-v2';
 var FILES = ['./', 'index.html', 'styles.css', 'app.js', 'content.js', 'scripture.js', 'lent.js',
-  'advent.js', 'easter.js', 'eastertide.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+  'advent.js', 'easter.js', 'eastertide.js', 'still.js', 'abide.js', 'whole.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(FILES); }).then(function () { return self.skipWaiting(); }));
 });

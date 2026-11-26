@@ -25,11 +25,15 @@
   PATHS.easter = { id: 'easter', name: 'Easter 2027', blurb: '14 days, Easter Sunday Mar 28 to Apr 10. Free.', days: EAS, scripture: (window.EASTER && window.EASTER.scripture) || {}, doneKey: 'doneEaster', noteKey: 'notesEaster', dated: true };
   var TIDE = (window.EASTERTIDE && window.EASTERTIDE.days) || [];
   PATHS.eastertide = { id: 'eastertide', name: 'Eastertide', blurb: 'Bonus: 36 more days, Apr 11 to Pentecost, May 16. Part of the paid plan (open in this test).', days: TIDE, scripture: (window.EASTERTIDE && window.EASTERTIDE.scripture) || {}, doneKey: 'doneTide', noteKey: 'notesTide', dated: true };
-  var ORDER = ['start', 'advent', 'lent', 'easter', 'eastertide'];
+  PATHS.still = { id: 'still', name: 'Stillness', blurb: '14 days, any time. Quiet prayer with a moment of silence each day.', days: (window.STILL && window.STILL.days) || [], scripture: (window.STILL && window.STILL.scripture) || {}, doneKey: 'doneStill', noteKey: 'notesStill', dated: false };
+  PATHS.abide = { id: 'abide', name: 'Abiding', blurb: '10 days, any time. Living in Christ and in each other.', days: (window.ABIDE && window.ABIDE.days) || [], scripture: (window.ABIDE && window.ABIDE.scripture) || {}, doneKey: 'doneAbide', noteKey: 'notesAbide', dated: false };
+  PATHS.whole = { id: 'whole', name: 'Wholeness', blurb: '10 days, any time. Healing, grace, and being made whole.', days: (window.WHOLE && window.WHOLE.days) || [], scripture: (window.WHOLE && window.WHOLE.scripture) || {}, doneKey: 'doneWhole', noteKey: 'notesWhole', dated: false };
+  var ORDER = ['start', 'advent', 'lent', 'easter', 'eastertide', 'still', 'abide', 'whole'];
+  var PATHRE = ORDER.join('|');
 
   // ---------- state ----------
   function fresh() {
-    return { done: {}, notes: {}, doneLent: {}, notesLent: {}, doneAdvent: {}, notesAdvent: {}, doneEaster: {}, notesEaster: {}, doneTide: {}, notesTide: {}, price: null, trialTap: false, churchInterest: false, churchNote: '', reminder: '', path: 'start', testMode: false };
+    return { done: {}, notes: {}, doneLent: {}, notesLent: {}, doneAdvent: {}, notesAdvent: {}, doneEaster: {}, notesEaster: {}, doneTide: {}, notesTide: {}, doneStill: {}, notesStill: {}, doneAbide: {}, notesAbide: {}, doneWhole: {}, notesWhole: {}, price: null, trialTap: false, churchInterest: false, churchNote: '', reminder: '', path: 'start', testMode: false };
   }
   function load() {
     var s = null, isNew = false;
@@ -255,6 +259,7 @@
       '<section class="card"><h2>Read</h2><p class="ref">' + esc(d.ref) + '</p>' + passage(p, n) +
       '<p class="muted small">World English Bible, British Edition (public domain). <a href="' + webLink(d.ref) + '" target="_blank" rel="noopener">Open on BibleGateway</a></p></section>' +
       '<section class="card"><p class="read">' + esc(d.leadIn) + '</p></section>' +
+      (d.pause ? '<section class="card pause"><h2>Pause</h2><p class="read">' + esc(d.pause) + '</p></section>' : '') +
       '<section class="card"><h2>Pray</h2><p class="prayer">' + esc(d.prayer) + '</p>' +
       '<div class="row"><button class="btn ghost" id="listen" type="button">Listen</button></div></section>' +
       '<section class="card"><h2>Reflect</h2><p class="read">' + esc(d.reflect) + '</p>' +
@@ -279,6 +284,9 @@
       'Easter: ' + doneCount(PATHS.easter) + ' of ' + PATHS.easter.days.length + ' days finished',
       'Eastertide: ' + doneCount(PATHS.eastertide) + ' of ' + PATHS.eastertide.days.length + ' days finished',
       'Advent: ' + doneCount(PATHS.advent) + ' of ' + PATHS.advent.days.length + ' days finished',
+      'Stillness: ' + doneCount(PATHS.still) + ' of ' + PATHS.still.days.length + ' days finished',
+      'Abiding: ' + doneCount(PATHS.abide) + ' of ' + PATHS.abide.days.length + ' days finished',
+      'Wholeness: ' + doneCount(PATHS.whole) + ' of ' + PATHS.whole.days.length + ' days finished',
       'Current streak: ' + streak(),
       'Reminder time: ' + (state.reminder || 'not set'),
       'Price shown: ' + money(state.price) + '/year',
@@ -331,9 +339,9 @@
   function route() {
     var hash = (location.hash || '#today').slice(1);
     var html, active = 'today', m;
-    if ((m = /^(start|lent|easter|eastertide|advent)-(\d+)$/.exec(hash))) { html = viewDay(m[1], +m[2]); active = 'paths'; }
+    if ((m = new RegExp('^(' + PATHRE + ')-(\\d+)$').exec(hash))) { html = viewDay(m[1], +m[2]); active = 'paths'; }
     else if ((m = /^day-(\d+)$/.exec(hash))) { hash = 'start-' + m[1]; html = viewDay('start', +m[1]); active = 'paths'; }
-    else if ((m = /^list-(start|lent|easter|eastertide|advent)$/.exec(hash))) { html = viewList(m[1]); active = 'paths'; }
+    else if ((m = new RegExp('^list-(' + PATHRE + ')$').exec(hash))) { html = viewList(m[1]); active = 'paths'; }
     else if (hash === 'days') { html = viewList(state.path); active = 'paths'; }
     else if (hash === 'paths') { html = viewPaths(); active = 'paths'; }
     else if (hash === 'reminder') { html = viewReminder(); active = 'reminder'; }
@@ -356,7 +364,7 @@
   }
 
   function wire(hash) {
-    var m = /^(start|lent|easter|eastertide|advent)-(\d+)$/.exec(hash);
+    var m = new RegExp('^(' + PATHRE + ')-(\\d+)$').exec(hash);
     if (m) {
       var p = PATHS[m[1]], n = +m[2], d = getDay(p, n);
       on('note', 'input', function (e) { state[p.noteKey][n] = e.target.value; save(); });
