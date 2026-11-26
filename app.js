@@ -179,7 +179,7 @@
 
   function resultsText() {
     var lines = [
-      'Daily Grace test results',
+      'Morning Light test results',
       'Days finished: ' + doneCount() + ' of ' + DAYS.length,
       'Current streak: ' + streak(),
       'Reminder time: ' + (state.reminder || 'not set'),
@@ -197,7 +197,7 @@
 
   function viewPlan() {
     return '<h1>Plan</h1>' +
-      '<section class="card"><p class="eyebrow">Daily Grace</p><div class="price">' + money(state.price) + '<span class="muted small"> / year</span></div>' +
+      '<section class="card"><p class="eyebrow">Morning Light</p><div class="price">' + money(state.price) + '<span class="muted small"> / year</span></div>' +
       '<ul class="clean"><li>A new 5-minute prayer session every day</li><li>Audio for every session</li><li>Streaks and reminders</li></ul>' +
       '<div class="row"><button class="btn" id="trial" type="button">Start 7-day free trial</button></div>' +
       '<p class="muted small" id="trialmsg">' + (state.trialTap ? 'Thanks. Payments are not live yet, and you have not been charged.' : 'Test version: no payment is taken.') + '</p></section>' +
