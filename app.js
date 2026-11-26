@@ -21,6 +21,14 @@
   var ADV_YEAR = _t > _y + '-12-24' ? _y + 1 : _y;
   ADV.forEach(function (d) { d.date = ADV_YEAR + '-12-' + (d.day < 10 ? '0' : '') + d.day; });
   PATHS.advent = { id: 'advent', name: 'Advent ' + ADV_YEAR, blurb: '24 days, Dec 1 to Christmas Eve.', days: ADV, scripture: (window.ADVENT && window.ADVENT.scripture) || {}, doneKey: 'doneAdvent', noteKey: 'notesAdvent', dated: true };
+  // Christmastide runs Dec 25 to Epiphany (Jan 6). In early January it still belongs to the season that began last December.
+  var XM = (window.CHRISTMAS && window.CHRISTMAS.days) || [];
+  var XM_YEAR = _t <= _y + '-01-06' ? _y - 1 : _y;
+  XM.forEach(function (d) {
+    var dd = d.day <= 7 ? 24 + d.day : d.day - 7;
+    d.date = d.day <= 7 ? XM_YEAR + '-12-' + dd : (XM_YEAR + 1) + '-01-0' + dd;
+  });
+  PATHS.christmas = { id: 'christmas', name: 'Christmastide', blurb: '13 days, Dec 25 to Epiphany, Jan 6.', days: XM, scripture: (window.CHRISTMAS && window.CHRISTMAS.scripture) || {}, doneKey: 'doneXmas', noteKey: 'notesXmas', dated: true };
   var EAS = (window.EASTER && window.EASTER.days) || [];
   PATHS.easter = { id: 'easter', name: 'Easter 2027', blurb: '14 days, Easter Sunday Mar 28 to Apr 10. Free.', days: EAS, scripture: (window.EASTER && window.EASTER.scripture) || {}, doneKey: 'doneEaster', noteKey: 'notesEaster', dated: true };
   var TIDE = (window.EASTERTIDE && window.EASTERTIDE.days) || [];
@@ -28,12 +36,12 @@
   PATHS.still = { id: 'still', name: 'Stillness', blurb: '14 days, any time. Quiet prayer with a moment of silence each day.', days: (window.STILL && window.STILL.days) || [], scripture: (window.STILL && window.STILL.scripture) || {}, doneKey: 'doneStill', noteKey: 'notesStill', dated: false };
   PATHS.abide = { id: 'abide', name: 'Abiding', blurb: '10 days, any time. Living in Christ and in each other.', days: (window.ABIDE && window.ABIDE.days) || [], scripture: (window.ABIDE && window.ABIDE.scripture) || {}, doneKey: 'doneAbide', noteKey: 'notesAbide', dated: false };
   PATHS.whole = { id: 'whole', name: 'Wholeness', blurb: '10 days, any time. Healing, grace, and being made whole.', days: (window.WHOLE && window.WHOLE.days) || [], scripture: (window.WHOLE && window.WHOLE.scripture) || {}, doneKey: 'doneWhole', noteKey: 'notesWhole', dated: false };
-  var ORDER = ['start', 'advent', 'lent', 'easter', 'eastertide', 'still', 'abide', 'whole'];
+  var ORDER = ['start', 'advent', 'christmas', 'lent', 'easter', 'eastertide', 'still', 'abide', 'whole'];
   var PATHRE = ORDER.join('|');
 
   // ---------- state ----------
   function fresh() {
-    return { done: {}, notes: {}, doneLent: {}, notesLent: {}, doneAdvent: {}, notesAdvent: {}, doneEaster: {}, notesEaster: {}, doneTide: {}, notesTide: {}, doneStill: {}, notesStill: {}, doneAbide: {}, notesAbide: {}, doneWhole: {}, notesWhole: {}, price: null, trialTap: false, churchInterest: false, churchNote: '', reminder: '', path: 'start', testMode: false };
+    return { done: {}, notes: {}, doneLent: {}, notesLent: {}, doneAdvent: {}, notesAdvent: {}, doneEaster: {}, notesEaster: {}, doneTide: {}, notesTide: {}, doneXmas: {}, notesXmas: {}, doneStill: {}, notesStill: {}, doneAbide: {}, notesAbide: {}, doneWhole: {}, notesWhole: {}, price: null, trialTap: false, churchInterest: false, churchNote: '', reminder: '', path: 'start', testMode: false };
   }
   function load() {
     var s = null, isNew = false;
@@ -47,6 +55,7 @@
       // new visitors open on Advent while it is in season, otherwise on Start here
       var t = today();
       if (t >= ADV_YEAR + '-12-01' && t <= ADV_YEAR + '-12-24') s.path = 'advent';
+      else if (t >= XM_YEAR + '-12-25' && t <= (XM_YEAR + 1) + '-01-06') s.path = 'christmas';
     }
     var base = fresh();
     Object.keys(base).forEach(function (k) { if (s[k] === undefined) s[k] = base[k]; });
@@ -284,6 +293,7 @@
       'Easter: ' + doneCount(PATHS.easter) + ' of ' + PATHS.easter.days.length + ' days finished',
       'Eastertide: ' + doneCount(PATHS.eastertide) + ' of ' + PATHS.eastertide.days.length + ' days finished',
       'Advent: ' + doneCount(PATHS.advent) + ' of ' + PATHS.advent.days.length + ' days finished',
+      'Christmastide: ' + doneCount(PATHS.christmas) + ' of ' + PATHS.christmas.days.length + ' days finished',
       'Stillness: ' + doneCount(PATHS.still) + ' of ' + PATHS.still.days.length + ' days finished',
       'Abiding: ' + doneCount(PATHS.abide) + ' of ' + PATHS.abide.days.length + ' days finished',
       'Wholeness: ' + doneCount(PATHS.whole) + ' of ' + PATHS.whole.days.length + ' days finished',
