@@ -29,7 +29,7 @@
 
   // ---------- state ----------
   function fresh() {
-    return { done: {}, notes: {}, doneLent: {}, notesLent: {}, doneAdvent: {}, notesAdvent: {}, doneEaster: {}, notesEaster: {}, doneTide: {}, notesTide: {}, price: null, trialTap: false, churchInterest: false, reminder: '', path: 'start', testMode: false };
+    return { done: {}, notes: {}, doneLent: {}, notesLent: {}, doneAdvent: {}, notesAdvent: {}, doneEaster: {}, notesEaster: {}, doneTide: {}, notesTide: {}, price: null, trialTap: false, churchInterest: false, churchNote: '', reminder: '', path: 'start', testMode: false };
   }
   function load() {
     var s = null, isNew = false;
@@ -95,15 +95,29 @@
     });
     return o;
   }
-  function streak() {
-    var dates = streakDates();
-    var t = today();
-    var cur = dates[t] ? t : (dates[shift(t, -1)] ? shift(t, -1) : null);
-    if (!cur) return 0;
-    var n = 0;
-    while (dates[cur]) { n++; cur = shift(cur, -1); }
-    return n;
+  function dayNum(key) {
+    var p = key.split('-');
+    return Math.round(Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000);
   }
+  // Gentle streak: one missed day is forgiven (a grace day), but not twice within a week.
+  function streakInfo() {
+    var keys = Object.keys(streakDates()).map(dayNum).sort(function (a, b) { return b - a; });
+    var t = dayNum(today());
+    if (!keys.length) return { n: 0, atRisk: false };
+    var last = keys[0];
+    var gap = t - last;
+    if (gap > 2) return { n: 0, atRisk: false };
+    var n = 1, lastGrace = null;
+    for (var i = 1; i < keys.length; i++) {
+      var g = keys[i - 1] - keys[i];
+      if (g === 1) { n++; continue; }
+      if (g === 2 && (lastGrace === null || lastGrace - keys[i - 1] >= 7)) { lastGrace = keys[i - 1]; n++; continue; }
+      break;
+    }
+    // today still open and yesterday was missed: today uses the grace day
+    return { n: n, atRisk: gap === 2 };
+  }
+  function streak() { return streakInfo().n; }
   // first open, unfinished day in a path (or null)
   function nextOpen(p) {
     for (var i = 0; i < p.days.length; i++) {
@@ -171,7 +185,7 @@
     var nd = nextOpen(p);
     var h = '<section class="card hero"><div class="streak"><div class="num" aria-hidden="true">' + s + '</div>' +
       '<div><h2>' + (s === 1 ? '1 day streak' : s + ' day streak') + '</h2>' +
-      '<p class="muted small">' + esc(p.name) + ': ' + doneCount(p) + ' of ' + p.days.length + ' days finished</p></div></div>' + dots(p) + '</section>';
+      '<p class="muted small">' + esc(p.name) + ': ' + doneCount(p) + ' of ' + p.days.length + ' days finished</p>' + (streakInfo().atRisk ? '<p class="muted small">You missed yesterday. Pray today and your streak keeps going.</p>' : '') + '</div></div>' + dots(p) + '</section>';
     if (allDone(p)) {
       h += '<section class="card"><p class="eyebrow">All done</p><h1>You finished ' + esc(p.name) + '</h1>' +
         '<p class="read">Thank you for praying along. Tell us what worked and what did not.</p>' +
@@ -294,9 +308,22 @@
   }
 
   function viewChurch() {
-    return '<h1>For churches</h1><section class="card"><p class="note">Mockup only. Nothing here is live yet.</p>' +
-      '<p class="read">Give your whole congregation the same daily prayer, matched to your sermon series or season.</p>' +
-      '<ul class="clean"><li>One shared path for the whole congregation, such as Lent together</li><li>Pastor’s note on any day</li><li>Simple group totals, no personal details</li><li>Flat yearly price by congregation size</li></ul>' +
+    var note = state.churchNote || 'Friends, this Lent we are praying the same passage each day. Read it, pray it, and let us hold one another up.';
+    return '<h1>For churches</h1>' +
+      '<section class="card"><p class="note">Mockup only. Nothing here is live yet, and the numbers below are made up to show the idea.</p>' +
+      '<p class="read">Give your whole congregation the same daily prayer, matched to your sermon series or season. A pastor sets it up once, and members just open the app.</p></section>' +
+      '<section class="card"><h2>A note from your pastor</h2><p class="muted small">Write a short note that members see on a day you choose. Try it:</p>' +
+      '<label for="pnote">Pastor’s note</label><textarea id="pnote" placeholder="Write a note to your congregation">' + esc(state.churchNote || '') + '</textarea>' +
+      '<p class="eyebrow">How members see it</p><div class="preview"><p class="read" id="pnotepreview">' + esc(note) + '</p><p class="muted small">Your pastor · Lent, Day 5</p></div></section>' +
+      '<section class="card"><h2>Our Lent challenge together</h2><p class="muted small">A shared goal, shown as one total with no names.</p>' +
+      '<div class="bar" role="img" aria-label="68 percent of the goal"><span style="width:68%"></span></div>' +
+      '<p class="read"><strong>1,360 of 2,000</strong> sessions prayed together so far.</p>' +
+      '<p class="muted small">Sample numbers.</p></section>' +
+      '<section class="card"><h2>Fair for every size</h2><p class="muted small">Goals are set per member, so a church of 40 and a church of 400 each aim for the same thing: about the same number of sessions per person. Small congregations can always keep up.</p>' +
+      '<div class="list"><div class="item"><span class="t"><strong>Grace Methodist (42 members)</strong><span class="muted small">31 sessions per member</span></span></div>' +
+      '<div class="item"><span class="t"><strong>First Church (380 members)</strong><span class="muted small">29 sessions per member</span></span></div></div>' +
+      '<p class="muted small">Sample numbers. Every church opts in, and only group totals are shown. Individuals are never ranked.</p></section>' +
+      '<section class="card"><h2>What a church gets</h2><ul class="clean"><li>One shared path for the whole congregation, such as Lent together</li><li>Pastor’s notes on any day</li><li>Group totals and a shared goal, with no personal details</li><li>Optional badges and milestones, which you switch on or leave off</li><li>Flat yearly price by congregation size</li></ul>' +
       '<div class="row"><button class="btn" id="church" type="button">' + (state.churchInterest ? 'Interest noted ✓' : 'I’d like this for my church') + '</button></div></section>';
   }
 
@@ -388,12 +415,24 @@
       var ta = document.getElementById('results');
       copyText(ta.value, ta);
     });
+    on('pnote', 'input', function (e) {
+      state.churchNote = e.target.value; save();
+      var pv = document.getElementById('pnotepreview');
+      if (pv) pv.textContent = state.churchNote || 'Friends, this Lent we are praying the same passage each day. Read it, pray it, and let us hold one another up.';
+    });
     on('church', 'click', function () {
       state.churchInterest = true; save();
       document.getElementById('church').textContent = 'Interest noted ✓';
       toast('Noted');
     });
   }
+
+  // installable app: only where service workers exist (the real site, not preview sandboxes)
+  try {
+    if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+      navigator.serviceWorker.register('sw.js').catch(function () { /* ignore */ });
+    }
+  } catch (e) { /* ignore */ }
 
   window.addEventListener('hashchange', route);
   window.addEventListener('pagehide', function () {

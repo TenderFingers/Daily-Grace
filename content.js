@@ -94,7 +94,7 @@ window.DAYS = [
     title: 'Living at peace',
     ref: 'Romans 12:9-18',
     leadIn: 'Paul tells us to hate what is evil, repay no one evil for evil, and live at peace with everyone as far as it depends on us. Today we can ask what that means for grudges, gossip and the words we keep rehearsing in our heads.',
-    prayer: 'God, free me from bitterness. Where I have been hurt, give me the strength to leave revenge to you. Where I have hurt others, give me the courage to make it right. Help me live at peace as far as it depends on me. Amen.',
+    prayer: 'God, free me from bitterness. Where I have been hurt, give me the strength not to repay evil with evil. Where I have hurt others, give me the courage to make it right. Help me live at peace as far as it depends on me. Amen.',
     reflect: 'Is there anyone you need to forgive or make peace with?'
   },
   {
@@ -102,7 +102,7 @@ window.DAYS = [
     title: 'Pressing on',
     ref: 'Philippians 3:12-16',
     leadIn: 'Paul admits he has not yet reached the goal. He presses on toward the goal, one step at a time.',
-    prayer: 'Lord, I am not who I want to be, and thank you that I am not stuck. Give me a steady step today, not a perfect one. Show me one small habit worth keeping. Amen.',
+    prayer: 'Lord, I am not who I want to be, and thank you that I am not stuck. Give me a steady step today, not a perfect one. Teach me to leave what is behind and keep walking. Amen.',
     reflect: 'What is one small habit worth keeping?'
   },
   {
